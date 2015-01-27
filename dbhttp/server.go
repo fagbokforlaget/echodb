@@ -113,6 +113,11 @@ func documentsController(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	col := echodb.Get(params["name"])
 
+	if col == nil {
+		http.Error(w, http.StatusText(404), 404)
+		return
+	}
+
 	docs := make([]map[string]interface{}, 0)
 	for doc := range col.All() {
 		docs = append(docs, doc)
