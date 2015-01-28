@@ -1,6 +1,6 @@
 EchoDB
 ===================
-Fault-tolerrent "data-on-wire" NoSQL datastore written in 48hrs.
+Fault-tolerrent "data-on-wire" NoSQL datastore.
 
 * Fault-tolerrant NoSQL [done]
 * MMAP based datastore (mostly based on gommap and tiedot wrapper)
@@ -18,15 +18,10 @@ Install
 mkdir echodb
 cd echodb
 export GOPATH=`pwd`
-go get github.com/gophergala/echodb
-cd src/github.com/gophergala/echodb/
-go run main.go
+go get github.com/fagbokforlaget/echodb
+cd src/github.com/fagbokforlaget/echodb/
+./bin/echodb
 ```
-You may also run it from binary but you need to copy todoapp in bin
-folder
-
-There is a sample todo app at http://localhost:8001/client [try it in
-two browser sessions]
 
 HTTP server runs at http://localhost:8001 please see
 [server.go](dbhttp/server.go)
