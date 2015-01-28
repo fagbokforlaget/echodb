@@ -19,7 +19,6 @@ mkdir echodb
 cd echodb
 export GOPATH=`pwd`
 go get github.com/fagbokforlaget/echodb
-cd src/github.com/fagbokforlaget/echodb/
 ./bin/echodb
 ```
 
