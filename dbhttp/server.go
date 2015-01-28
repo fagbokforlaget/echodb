@@ -3,8 +3,8 @@ package dbhttp
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/espresse/echodb/db"
-	"github.com/espresse/echodb/dbwebsocket"
+	"github.com/fagbokforlaget/echodb/db"
+	"github.com/fagbokforlaget/echodb/dbwebsocket"
 	"github.com/gorilla/mux"
 	"github.com/justinas/alice"
 	"log"
