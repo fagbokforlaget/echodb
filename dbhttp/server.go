@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"text/template"
 	"time"
 )
 
@@ -242,13 +241,6 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	dbwebsocket.ServeWs(params["name"], w, r)
 }
 
-var homeTempl = template.Must(template.ParseFiles("./todoapp/index.html"))
-
-func serveHome(w http.ResponseWriter, r *http.Request) {
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	homeTempl.Execute(w, r.Host)
-}
 
 // ROUTER
 func router() {
@@ -272,7 +264,6 @@ func router() {
 	r.Handle("/colls/{name}/docs/{id}", stdChain.Then(http.HandlerFunc(deleteDocumentController))).Methods("DELETE")
 
 	r.Handle("/ws/{name}", http.HandlerFunc(serveWs)).Methods("GET")
-	r.Handle("/client", http.HandlerFunc(serveHome)).Methods("GET")
 
 	http.Handle("/", r)
 	return
@@ -285,8 +276,6 @@ func Start() {
 	echodb, _ = db.OpenDatabase("/tmp/echodb")
 
 	router()
-	fs := http.FileServer(http.Dir("todoapp/static"))
-	http.Handle("/static/", http.StripPrefix("/static/", fs))
 	port := ":8001"
 	log.Println("[HTTP Server]", port)
 	http.ListenAndServe(port, nil)
