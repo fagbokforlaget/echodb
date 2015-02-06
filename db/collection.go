@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/fagbokforlaget/echodb/dbcore"
 	"github.com/fagbokforlaget/echodb/dbwebsocket"
-	"math/rand"
+    "github.com/applift/gouuid"
 	"os"
 	"path"
 	"strconv"
@@ -22,6 +22,28 @@ type Collection struct {
 	parts []*dbcore.Partition
 }
 
+// Hash a string using sdbm algorithm.
+func StrHash(str string) int {
+    var hash int
+    for _, c := range str {
+        hash = int(c) + (hash << 6) + (hash << 16) - hash
+    }
+    if hash < 0 {
+        return -hash
+    }
+    return hash
+}
+
+// Generate id for documents
+func GenerateUUID4() *uuid.UUID {
+    u4, err := uuid.NewV4()
+    if err != nil {
+        return u4
+    }
+    return u4
+}
+
+// Bootstrap collections and loads necessary things
 func OpenCollection(db *Database, name string) (*Collection, error) {
 	collection := &Collection{db: db, name: name}
 	return collection, collection.bootstrap()
@@ -53,6 +75,7 @@ func (col *Collection) close() error {
 	return nil
 }
 
+// Counts number of documents in collection
 func (col *Collection) Count() int {
 	col.db.access.RLock()
 	defer col.db.access.RUnlock()
@@ -67,45 +90,56 @@ func (col *Collection) Count() int {
 }
 
 // Insert a document into the collection.
-func (col *Collection) Insert(doc map[string]interface{}) (id int, err error) {
+func (col *Collection) Insert(doc map[string]interface{}) (id string, err error) {
+    _, ok := doc["_id"]
+    if ok == false {
+        id = fmt.Sprint(GenerateUUID4())
+	    doc["_id"] = id
+    } else {
+        id = doc["_id"].(string)
+    }
+
 	docJS, err := json.Marshal(doc)
 	if err != nil {
 		return
 	}
-	id = rand.Int()
-	partNum := id % col.db.numParts
+
+	hashKey := StrHash(id)
+
+	partNum := hashKey % col.db.numParts
 	col.db.access.RLock()
 	part := col.parts[partNum]
 	// Put document data into collection
 	part.Lock.Lock()
-	if _, err = part.Insert(id, []byte(docJS)); err != nil {
+	if _, err = part.Insert(hashKey, []byte(docJS)); err != nil {
 		part.Lock.Unlock()
 		col.db.access.RUnlock()
 		return
 	}
 	// If another thread is updating the document in the meanwhile, let it take over index maintenance
-	if err = part.LockUpdate(id); err != nil {
+	if err = part.LockUpdate(hashKey); err != nil {
 		part.Lock.Unlock()
 		col.db.access.RUnlock()
 		return id, nil
 	}
-	part.UnlockUpdate(id)
+	part.UnlockUpdate(hashKey)
 	part.Lock.Unlock()
 	col.db.access.RUnlock()
 
-	doc["_id"] = strconv.Itoa(id)
 	emitDoc(col.name, "create", doc)
 	return
 }
 
 // Retrieve a document by ID.
-func (col *Collection) FindById(id int) (doc map[string]interface{}, err error) {
+func (col *Collection) FindById(id string) (doc map[string]interface{}, err error) {
 	col.db.access.RLock()
 	defer col.db.access.RUnlock()
 
-	part := col.parts[id%col.db.numParts]
+    hashKey := StrHash(id)
+
+	part := col.parts[hashKey%col.db.numParts]
 	part.Lock.RLock()
-	docB, err := part.Read(id)
+	docB, err := part.Read(hashKey)
 	part.Lock.RUnlock()
 	if err != nil {
 		return
@@ -130,7 +164,6 @@ func (col *Collection) All() chan map[string]interface{} {
 			for d := range part.All(j, partDiv) {
 				doc := make(map[string]interface{})
 				json.Unmarshal(d.Data, &doc)
-				doc["_id"] = strconv.Itoa(d.Id)
 				c <- doc
 			}
 		}
@@ -140,7 +173,7 @@ func (col *Collection) All() chan map[string]interface{} {
 }
 
 // Update a document
-func (col *Collection) Update(id int, doc map[string]interface{}) error {
+func (col *Collection) Update(id string, doc map[string]interface{}) error {
 	if doc == nil {
 		return fmt.Errorf("Updating %d: input doc may not be nil", id)
 	}
@@ -149,17 +182,18 @@ func (col *Collection) Update(id int, doc map[string]interface{}) error {
 		return err
 	}
 	col.db.access.RLock()
-	part := col.parts[id%col.db.numParts]
+    hashKey := StrHash(id)
+	part := col.parts[hashKey%col.db.numParts]
 	part.Lock.Lock()
 	// Place lock, read back original document and update
-	if err := part.LockUpdate(id); err != nil {
+	if err := part.LockUpdate(hashKey); err != nil {
 		part.Lock.Unlock()
 		col.db.access.RUnlock()
 		return err
 	}
-	originalB, err := part.Read(id)
+	originalB, err := part.Read(hashKey)
 	if err != nil {
-		part.UnlockUpdate(id)
+		part.UnlockUpdate(hashKey)
 		part.Lock.Unlock()
 		col.db.access.RUnlock()
 		return err
@@ -168,35 +202,35 @@ func (col *Collection) Update(id int, doc map[string]interface{}) error {
 	if err = json.Unmarshal(originalB, &original); err != nil {
 		fmt.Printf("Will not attempt to unindex document %d during update\n", id)
 	}
-	if err = part.Update(id, []byte(docJS)); err != nil {
-		part.UnlockUpdate(id)
+	if err = part.Update(hashKey, []byte(docJS)); err != nil {
+		part.UnlockUpdate(hashKey)
 		part.Lock.Unlock()
 		col.db.access.RUnlock()
 		return err
 	}
-	part.UnlockUpdate(id)
+	part.UnlockUpdate(hashKey)
 	part.Lock.Unlock()
 	col.db.access.RUnlock()
 
-	doc["_id"] = strconv.Itoa(id)
 	emitDoc(col.name, "update", doc)
 	return nil
 }
 
 // Delete a document
-func (col *Collection) Delete(id int) error {
+func (col *Collection) Delete(id string) error {
 	col.db.access.RLock()
-	part := col.parts[id%col.db.numParts]
+    hashKey := StrHash(id)
+	part := col.parts[hashKey%col.db.numParts]
 	part.Lock.Lock()
 	// Place lock, read back original document and delete document
-	if err := part.LockUpdate(id); err != nil {
+	if err := part.LockUpdate(hashKey); err != nil {
 		part.Lock.Unlock()
 		col.db.access.RUnlock()
 		return err
 	}
-	originalB, err := part.Read(id)
+	originalB, err := part.Read(hashKey)
 	if err != nil {
-		part.UnlockUpdate(id)
+		part.UnlockUpdate(hashKey)
 		part.Lock.Unlock()
 		col.db.access.RUnlock()
 		return err
@@ -205,16 +239,16 @@ func (col *Collection) Delete(id int) error {
 	if err = json.Unmarshal(originalB, &original); err != nil {
 		fmt.Printf("Will not attempt to unindex document %d during delete\n", id)
 	}
-	if err = part.Delete(id); err != nil {
-		part.UnlockUpdate(id)
+	if err = part.Delete(hashKey); err != nil {
+		part.UnlockUpdate(hashKey)
 		part.Lock.Unlock()
 		col.db.access.RUnlock()
 		return err
 	}
-	part.UnlockUpdate(id)
+	part.UnlockUpdate(hashKey)
 	part.Lock.Unlock()
 	col.db.access.RUnlock()
-	emitDoc(col.name, "delete", map[string]interface{}{"_id": strconv.Itoa(id)})
+	emitDoc(col.name, "delete", map[string]interface{}{"_id": id})
 	return nil
 }
 
