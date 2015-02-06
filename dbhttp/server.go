@@ -127,6 +127,7 @@ func documentsController(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Fprint(w, string(mj))
 }
+
 // read document
 func documentController(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
@@ -225,7 +226,6 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 
 	dbwebsocket.ServeWs(params["name"], w, r)
 }
-
 
 // ROUTER
 func router() {

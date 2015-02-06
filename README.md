@@ -31,6 +31,7 @@ Dependencies
 go get github.com/justinas/alice
 go get github.com/gorilla/mux
 go get github.com/gorilla/websocket
+go get github.com/applift/gouuid
 ```
 
 Database API

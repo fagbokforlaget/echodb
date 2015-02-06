@@ -4,9 +4,9 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/applift/gouuid"
 	"github.com/fagbokforlaget/echodb/dbcore"
 	"github.com/fagbokforlaget/echodb/dbwebsocket"
-    "github.com/applift/gouuid"
 	"os"
 	"path"
 	"strconv"
@@ -24,23 +24,23 @@ type Collection struct {
 
 // Hash a string using sdbm algorithm.
 func StrHash(str string) int {
-    var hash int
-    for _, c := range str {
-        hash = int(c) + (hash << 6) + (hash << 16) - hash
-    }
-    if hash < 0 {
-        return -hash
-    }
-    return hash
+	var hash int
+	for _, c := range str {
+		hash = int(c) + (hash << 6) + (hash << 16) - hash
+	}
+	if hash < 0 {
+		return -hash
+	}
+	return hash
 }
 
 // Generate id for documents
 func GenerateUUID4() *uuid.UUID {
-    u4, err := uuid.NewV4()
-    if err != nil {
-        return u4
-    }
-    return u4
+	u4, err := uuid.NewV4()
+	if err != nil {
+		return u4
+	}
+	return u4
 }
 
 // Bootstrap collections and loads necessary things
@@ -91,13 +91,13 @@ func (col *Collection) Count() int {
 
 // Insert a document into the collection.
 func (col *Collection) Insert(doc map[string]interface{}) (id string, err error) {
-    _, ok := doc["_id"]
-    if ok == false {
-        id = fmt.Sprint(GenerateUUID4())
-	    doc["_id"] = id
-    } else {
-        id = doc["_id"].(string)
-    }
+	_, ok := doc["_id"]
+	if ok == false {
+		id = fmt.Sprint(GenerateUUID4())
+		doc["_id"] = id
+	} else {
+		id = doc["_id"].(string)
+	}
 
 	docJS, err := json.Marshal(doc)
 	if err != nil {
@@ -135,7 +135,7 @@ func (col *Collection) FindById(id string) (doc map[string]interface{}, err erro
 	col.db.access.RLock()
 	defer col.db.access.RUnlock()
 
-    hashKey := StrHash(id)
+	hashKey := StrHash(id)
 
 	part := col.parts[hashKey%col.db.numParts]
 	part.Lock.RLock()
@@ -182,7 +182,7 @@ func (col *Collection) Update(id string, doc map[string]interface{}) error {
 		return err
 	}
 	col.db.access.RLock()
-    hashKey := StrHash(id)
+	hashKey := StrHash(id)
 	part := col.parts[hashKey%col.db.numParts]
 	part.Lock.Lock()
 	// Place lock, read back original document and update
@@ -219,7 +219,7 @@ func (col *Collection) Update(id string, doc map[string]interface{}) error {
 // Delete a document
 func (col *Collection) Delete(id string) error {
 	col.db.access.RLock()
-    hashKey := StrHash(id)
+	hashKey := StrHash(id)
 	part := col.parts[hashKey%col.db.numParts]
 	part.Lock.Lock()
 	// Place lock, read back original document and delete document
