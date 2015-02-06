@@ -152,23 +152,22 @@ func (col *Collection) FindById(id string) (doc map[string]interface{}, err erro
 // Cursor to all records in collection
 func (col *Collection) All() chan map[string]interface{} {
 	count := col.Count()
+	// buffered channel, keep it async
 	c := make(chan map[string]interface{}, count)
-	if count == 0 {
-		close(c)
-		return c
-	}
-	partDiv := count / col.db.numParts
-	for i := 0; i < col.db.numParts; i++ {
-		part := col.parts[i]
-		for j := 0; j < partDiv; j++ {
-			for d := range part.All(j, partDiv) {
-				doc := make(map[string]interface{})
-				json.Unmarshal(d.Data, &doc)
-				c <- doc
+	go func() {
+		partDiv := count / col.db.numParts
+		for i := 0; i < col.db.numParts; i++ {
+			part := col.parts[i]
+			for j := 0; j < partDiv; j++ {
+				for d := range part.All(j, partDiv) {
+					doc := make(map[string]interface{})
+					json.Unmarshal(d.Data, &doc)
+					c <- doc
+				}
 			}
 		}
-	}
-	close(c)
+		close(c)
+	}()
 	return c
 }
 
