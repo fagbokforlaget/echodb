@@ -9,7 +9,6 @@ import (
 	"github.com/justinas/alice"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 )
 
@@ -128,17 +127,14 @@ func documentsController(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Fprint(w, string(mj))
 }
+
 // read document
 func documentController(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	col := echodb.Get(params["name"])
 	// status := false
 
-	id, atoiErr := strconv.Atoi(params["id"])
-	if atoiErr != nil {
-		http.Error(w, http.StatusText(400), 400)
-		return
-	}
+	id := params["id"]
 
 	doc, err := col.FindById(id)
 	if err == nil {
@@ -172,7 +168,7 @@ func newDocumentController(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	send(w, r, Response{"_id": strconv.Itoa(id)})
+	send(w, r, Response{"_id": id})
 }
 
 // update document
@@ -194,11 +190,7 @@ func updateDocumentController(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, atoiErr := strconv.Atoi(params["id"])
-	if atoiErr != nil {
-		http.Error(w, http.StatusText(400), 400)
-		return
-	}
+	id := params["id"]
 
 	docErr := col.Update(id, doc)
 	if docErr != nil {
@@ -220,13 +212,7 @@ func deleteDocumentController(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, atoiErr := strconv.Atoi(params["id"])
-	if atoiErr != nil {
-		http.Error(w, http.StatusText(400), 400)
-		return
-	}
-
-	docErr := col.Delete(id)
+	docErr := col.Delete(params["id"])
 	if docErr != nil {
 		http.Error(w, http.StatusText(500), 500)
 		return
@@ -240,7 +226,6 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 
 	dbwebsocket.ServeWs(params["name"], w, r)
 }
-
 
 // ROUTER
 func router() {

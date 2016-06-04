@@ -126,16 +126,17 @@ type docData struct {
 func (part *Partition) All(partNum, totalPart int) chan docData {
 	c := make(chan docData, totalPart)
 	ids, physIDs := part.lookup.GetPartition(partNum, totalPart)
-	for i, id := range ids {
-		data := part.col.Read(physIDs[i])
-		if data != nil {
-			c <- docData{id, data}
-		} else {
-			close(c)
-			return c
+	go func() {
+		for i, id := range ids {
+			data := part.col.Read(physIDs[i])
+			if data != nil {
+				c <- docData{id, data}
+			} else {
+				continue
+			}
 		}
-	}
-	close(c)
+		close(c)
+	}()
 	return c
 }
 
